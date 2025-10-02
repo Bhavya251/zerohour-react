@@ -1,0 +1,46 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="95" fill="#1b2d4a"/>
+  
+  <!-- Inner geometric design -->
+  <circle cx="100" cy="100" r="75" fill="#212a36"/>
+  
+  <!-- Code bracket symbols forming abstract shape -->
+  <path d="M 60 70 L 45 100 L 60 130" 
+        stroke="#2274d1" 
+        stroke-width="8" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        fill="none"/>
+  
+  <path d="M 140 70 L 155 100 L 140 130" 
+        stroke="#2274d1" 
+        stroke-width="8" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        fill="none"/>
+  
+  <!-- Central hexagon representing structure/code -->
+  <path d="M 100 60 L 130 77.5 L 130 112.5 L 100 130 L 70 112.5 L 70 77.5 Z" 
+        fill="#32425d" 
+        stroke="#b1c6f9" 
+        stroke-width="3"/>
+  
+  <!-- Inner accent lines -->
+  <line x1="100" y1="75" x2="100" y2="115" 
+        stroke="#2274d1" 
+        stroke-width="4" 
+        stroke-linecap="round"/>
+  
+  <line x1="85" y1="95" x2="115" y2="95" 
+        stroke="#2274d1" 
+        stroke-width="4" 
+        stroke-linecap="round"/>
+  
+  <!-- Subtle dots for tech aesthetic -->
+  <circle cx="100" cy="95" r="3" fill="#b1c6f9"/>
+  <circle cx="88" cy="85" r="2" fill="#2274d1" opacity="0.6"/>
+  <circle cx="112" cy="85" r="2" fill="#2274d1" opacity="0.6"/>
+  <circle cx="88" cy="105" r="2" fill="#2274d1" opacity="0.6"/>
+  <circle cx="112" cy="105" r="2" fill="#2274d1" opacity="0.6"/>
+</svg>
