@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useSSE } from '../hooks/useSSE';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -9,7 +10,6 @@ import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-const WS_URL = BACKEND_URL.replace('https://', 'wss://').replace('http://', 'ws://');
 
 const ChatPage = () => {
   const { chatId } = useParams();
@@ -21,65 +21,16 @@ const ChatPage = () => {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [chatInfo, setChatInfo] = useState(null);
-  const [connected, setConnected] = useState(false);
+  const [sending, setSending] = useState(false);
   
-  const wsRef = useRef(null);
+  // Use SSE hook
+  const { messages: sseMessages, isConnected } = useSSE(user?.user_id);
+  
   const messagesEndRef = useRef(null);
 
   // Scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  // Connect to WebSocket
-  const connectWebSocket = () => {
-    if (!user?.user_id) return;
-    
-    const ws = new WebSocket(`${WS_URL}/ws/${user.user_id}`);
-    wsRef.current = ws;
-    
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-      setConnected(true);
-    };
-    
-    ws.onmessage = (event) => {
-      const messageData = JSON.parse(event.data);
-      console.log('Received message:', messageData);
-      
-      // Only add message if it belongs to current chat
-      if (messageData.chat_id === chatId) {
-        setMessages(prev => {
-          // Check if message already exists (avoid duplicates)
-          const messageExists = prev.some(msg => msg.message_id === messageData.message_id);
-          if (messageExists) return prev;
-          
-          const newMsg = {
-            ...messageData,
-            timestamp: new Date(messageData.timestamp),
-            is_own_message: messageData.sender.user_id === user.user_id
-          };
-          return [...prev, newMsg];
-        });
-      }
-    };
-    
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      setConnected(false);
-      
-      // Attempt to reconnect after 3 seconds
-      setTimeout(() => {
-        if (user?.user_id) {
-          connectWebSocket();
-        }
-      }, 3000);
-    };
-    
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setConnected(false);
-    };
   };
 
   // Fetch chat messages
@@ -103,33 +54,79 @@ const ChatPage = () => {
     }
   };
 
+  // Add SSE messages to the message list
+  useEffect(() => {
+    sseMessages.forEach(sseMsg => {
+      if (sseMsg.chat_id === chatId) {
+        setMessages(prev => {
+          const exists = prev.some(msg => msg.message_id === sseMsg.message_id);
+          if (exists) return prev;
+          
+          return [...prev, {
+            message_id: sseMsg.message_id,
+            content: sseMsg.content,
+            timestamp: new Date(sseMsg.timestamp),
+            sender: sseMsg.sender,
+            is_own_message: sseMsg.sender.user_id === user?.user_id
+          }];
+        });
+      }
+    });
+  }, [sseMessages, chatId, user?.user_id]);
+
   // Get chat info from messages
   useEffect(() => {
-    if (messages.length > 0) {
-      const firstMessage = messages[0];
-      const otherUser = firstMessage.sender.user_id !== user?.user_id 
-        ? firstMessage.sender 
-        : messages.find(m => m.sender.user_id !== user?.user_id)?.sender;
+    if (messages.length > 0 && user?.user_id) {
+      // Find the first message from the other user
+      const otherUserMessage = messages.find(m => m.sender && m.sender.user_id !== user.user_id);
       
-      if (otherUser) {
+      if (otherUserMessage && otherUserMessage.sender) {
+        console.log('Setting chat info with other user:', otherUserMessage.sender);
         setChatInfo({
-          other_user: otherUser
+          other_user: otherUserMessage.sender
         });
+      } else {
+        // If all messages are from current user, try to get chat info from API
+        console.log('All messages are from current user, fetching chat details');
+        fetchChatDetails();
       }
     }
   }, [messages, user]);
 
-  // Send message
-  const sendMessage = () => {
-    if (!newMessage.trim() || !wsRef.current || !connected) return;
+  // Fetch chat details to get other user info
+  const fetchChatDetails = async () => {
+    try {
+      const response = await axios.get(`${API}/chats`);
+      const currentChat = response.data.find(chat => chat.chat_id === chatId);
+      if (currentChat && currentChat.other_user) {
+        console.log('Got chat details from chats list:', currentChat.other_user);
+        setChatInfo({
+          other_user: currentChat.other_user
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching chat details:', error);
+    }
+  };
+
+  // Send message via REST API
+  const sendMessage = async () => {
+    if (!newMessage.trim() || sending) return;
     
-    const messageData = {
-      chat_id: chatId,
-      content: newMessage.trim()
-    };
-    
-    wsRef.current.send(JSON.stringify(messageData));
-    setNewMessage('');
+    setSending(true);
+    try {
+      await axios.post(`${API}/send/${user.user_id}`, {
+        chat_id: chatId,
+        content: newMessage.trim()
+      });
+      
+      setNewMessage('');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.error('Failed to send message');
+    } finally {
+      setSending(false);
+    }
   };
 
   // Handle Enter key press
@@ -153,16 +150,6 @@ const ChatPage = () => {
       fetchMessages();
     }
   }, [chatId]);
-
-  useEffect(() => {
-    connectWebSocket();
-    
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, [user?.user_id]);
 
   useEffect(() => {
     scrollToBottom();
@@ -220,9 +207,9 @@ const ChatPage = () => {
           
           {/* Connection Status */}
           <div className="flex items-center text-sm">
-            <div className={`w-2 h-2 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
             <span style={{ color: 'var(--text-secondary)' }}>
-              {connected ? 'Connected' : 'Disconnected'}
+              {isConnected ? 'Connected' : 'Disconnected'}
             </span>
           </div>
         </div>
@@ -270,26 +257,30 @@ const ChatPage = () => {
               onKeyPress={handleKeyPress}
               placeholder="Type your message..."
               className="flex-1 neumorphic-input"
-              disabled={!connected}
+              disabled={!isConnected || sending}
               data-testid="message-input"
             />
             <Button
               onClick={sendMessage}
-              disabled={!newMessage.trim() || !connected}
+              disabled={!newMessage.trim() || !isConnected || sending}
               className="neumorphic-button px-6"
               style={{
-                background: newMessage.trim() && connected ? 
+                background: newMessage.trim() && isConnected && !sending ? 
                   `linear-gradient(135deg, var(--color-blue), var(--color-light-blue))` : 
                   'var(--bg-primary)',
-                color: newMessage.trim() && connected ? 'white' : 'var(--text-secondary)'
+                color: newMessage.trim() && isConnected && !sending ? 'white' : 'var(--text-secondary)'
               }}
               data-testid="send-message-btn"
             >
-              <i className="fas fa-paper-plane"></i>
+              {sending ? (
+                <i className="fas fa-spinner fa-spin"></i>
+              ) : (
+                <i className="fas fa-paper-plane"></i>
+              )}
             </Button>
           </div>
           
-          {!connected && (
+          {!isConnected && (
             <div className="text-center mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
               <i className="fas fa-exclamation-triangle mr-1"></i>
               Connecting to chat...

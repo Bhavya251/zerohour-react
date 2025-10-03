@@ -136,7 +136,7 @@ const DashboardPage = () => {
 
       {/* Header */}
       <div className="neumorphic mx-4 mt-4 p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center">
             <div className="neumorphic-inset w-12 h-12 rounded-full flex items-center justify-center mr-3">
               <i className="fas fa-comments text-xl" style={{ color: 'var(--color-blue)' }}></i>
@@ -245,7 +245,7 @@ const DashboardPage = () => {
       </div>
 
       {/* Chat List */}
-      <div className="p-4">
+      <div className="px-4 pt-4">
         <div className="neumorphic p-6">
           <h2 className="text-xl font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
             <i className="fas fa-comments mr-2"></i>
@@ -284,7 +284,7 @@ const DashboardPage = () => {
                             <h3 className="font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
                               {chat.other_user.first_name} {chat.other_user.last_name}
                             </h3>
-                            <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                            <div className="text-sm ml-2" style={{ color: 'var(--text-secondary)' }}>
                               {formatTime(chat.last_message_time)}
                             </div>
                           </div>
